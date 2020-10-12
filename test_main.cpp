@@ -59,9 +59,9 @@ int main(int argc, char *argv[]) {
         delete[] bgrdata;
     }
 
-    // if(bgrdata1 != nullptr) {
-    //     delete[] bgrdata1;
-    // }
+    if(bgrdata1 != nullptr) {
+        delete[] bgrdata1;
+    }
 
     if(resizedata != nullptr) {
         delete[] resizedata;

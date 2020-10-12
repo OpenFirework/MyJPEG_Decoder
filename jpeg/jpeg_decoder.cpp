@@ -9,33 +9,37 @@
 
 struct hufcode {
     int codeLength;   // 0< codeLength<16
-    int encodeValue;
-    byte realVale;
+    int encodeValue;  //编码值
+    byte realVale;    //实际值
 
 };
 
-double cu[8],cv[8];
+double cu[8],cv[8];  //离散余弦变换中间计算值暂存
 double cos_cache[200];
 
+//保存图像的实际宽和高
 struct {
     int height;
     int width;
 } image;
 
-unsigned char maxWidth, maxHeight;
+unsigned char maxWidth, maxHeight;  //水平和垂直最大采样因子，一般为2：2
 
+//RGB数据
 struct RGB {
     unsigned char R, G, B;
 };
 
+//颜色分量单元
 typedef double BLOCK[8][8];
 
+//交流哈夫曼编码
 struct acCode {
     unsigned char len;
     unsigned char zeros;
     int value;
 };
-
+//存储量化表，一般2个就够了，每个表8*8
 int quantTable[4][128];
 
 int bmpwidth;
@@ -57,7 +61,6 @@ struct {
 class MCU{
 public:
     BLOCK mcu[4][2][2];
-
     void show() {
         printf("*************** mcu show ***********************\n");
         for (int id = 1; id <= 3; id++) {
@@ -75,6 +78,7 @@ public:
         }
     };
    
+    //反量化
     void quantify() {
         for (int id = 1; id <= 3; id++) {
             for (int h = 0; h < subVector[id].height; h++) {
@@ -123,6 +127,7 @@ public:
         }
     };
    
+   //不高效，待改进
     void idct() {
         for (int id = 1; id <= 3; id++) {
             for (int h = 0; h < subVector[id].height; h++) {
@@ -288,7 +293,6 @@ int MyJPEG::jpegDecoder::readinfo(byte *&jpegdata, byte *&bgrdata, int &imgwidth
                 break;
             case 0xDA:
                 readSOS(jpegdata);
-                bgrdata = new byte[imgwidth*imgheidht*3];
                 decodeMCU(jpegdata, bgrdata);
                 break;
             default:
@@ -309,16 +313,17 @@ int MyJPEG::jpegDecoder::imgread(const char *filename, int &width, int &height, 
     infile.seekg(0, infile.beg);
     std::cout << "encoded jpeg data length is " << jpgdatalength<<"\n";
 
-    byte *decoded = new byte[jpgdatalength];
+    byte *decoded = new byte[jpgdatalength]; //decode会不断变换，拷贝一份到copyptr，然后删除
     byte *copyptr = decoded;
     infile.read((char*)decoded,jpgdatalength);  //读取编码的jpeg文件数据到内存中
     infile.close();
 
     int ret = readinfo(decoded, bgrdata, width, height);
-
     width = bmpwidth;
     height = bmpheight;
-    delete[] copyptr;
+    if(copyptr != nullptr) {
+        delete[] copyptr;
+    }
     return ret;
 }
 
@@ -353,6 +358,10 @@ void readAPP0(byte *&jpegdata) {
     } else {
         std::cout<<"该jpeg文件有缩略图RGB位图\n";
     }
+
+    if(appdata != nullptr) {
+        delete[] appdata;
+    }
 }
 
 void readDQT(byte *&jpegdata) {
@@ -382,6 +391,10 @@ void readDQT(byte *&jpegdata) {
     } else {
         std::cout<<"精度:16位,量化表ID:"<<tableid<<"\n";
         //待补充16位时候的情况
+    }
+
+    if(dqtdata != nullptr) {
+        delete[] dqtdata;
     }
 }
 
@@ -433,6 +446,10 @@ void readSOF0(byte *&jpegdata) {
         std::cout<<"垂直采样因子："<<static_cast<int>(subVector[i].height)<<"\n";
         std::cout<<"量化表ID："<<static_cast<int>(subVector[i].quant)<<"\n";
     }
+
+    if(sofdata != nullptr) {
+        delete[] sofdata;
+    }
 }
 
 void readCOM(byte *&jpegdata) {
@@ -447,7 +464,9 @@ void readCOM(byte *&jpegdata) {
         std::cout<<comdata[i];
     }
     std::cout<<"\n";
-
+    if(comdata != nullptr) {
+        delete[] comdata;
+    }
 }
 
 void reaDHT(byte *&jpegdata) {
@@ -484,6 +503,10 @@ void reaDHT(byte *&jpegdata) {
     } else if(type == 1 && tableid == 1) {   //UV分量的AC（交流）哈夫曼码表,这两个分量公用相同的DC，AC哈夫曼表
         createhuftable(huf, dhtdata+17, length-2-17, UVACHT); 
     }
+
+    if(dhtdata != nullptr) {
+        delete[] dhtdata;
+    }
 }
 
 void readSOS(byte *&jpegdata) {
@@ -516,6 +539,9 @@ void readSOS(byte *&jpegdata) {
     printf("谱选择开始:0x%02X\n",sosdata[7]);
     printf("谱选择结束:0x%02X\n",sosdata[8]);
     printf("谱选择:0x%02X\n",sosdata[9]);
+    if(sosdata != nullptr) {
+        delete[] sosdata;
+    }
 }
 
 //建立哈夫曼表
@@ -528,7 +554,6 @@ void createhuftable(int tree[16], byte *value, int length, std::vector<hufcode> 
     if (comlength != length) {
         std::cout << "data error, length not match\n";
     }
-
     int left = 0;
     int right = 0;
     int index = 0;
@@ -720,18 +745,17 @@ void decodeMCU(byte *&framedata, byte *&bgrdata) {
     int w = (image.width - 1) / (8*maxWidth) + 1; //水平mcu的个数
     int h = (image.height - 1) / (8*maxHeight) + 1; //垂直mcu的个数
 
-    bmpwidth = maxWidth * 8 * w;
-    bmpheight =  maxHeight * 8 * h;
+    bmpwidth = image.width;
+    bmpheight = image.height;
     bgrdata = new byte[bmpwidth*bmpheight*3];
     int bytes_per_pixel = 3;
     int bytes_per_row = bmpwidth*3;
-
+    
     for (int i = 0; i < h; i++) {
         for (int j = 0; j < w; j++) {
             MCU mcu = readMCU(framedata);
             mcu.decode();
             RGB **b = mcu.toRGB();
-
             for (int y = i*8*maxHeight; y < (i+1)*8*maxHeight; y++) {  //整个图片上的垂直坐标
                 for (int x = j*8*maxWidth; x < (j+1)*8*maxWidth; x++) {  //整个图片上的水平坐标
                     int by = y - i*8*maxHeight;
@@ -748,6 +772,16 @@ void decodeMCU(byte *&framedata, byte *&bgrdata) {
                 }
             } // end for 
 
+            //释放每个MCU转换RBG数据的暂存内存
+            for (int i = 0; i < maxHeight*8; i++) { 
+                if(b[i] != nullptr) {
+                     delete[] b[i];
+                }
+            } 
+            if(b != nullptr) {
+                delete[] b;
+            }
+            
         }
     }
 }

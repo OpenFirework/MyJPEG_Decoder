@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <string.h>
+#include <math.h>
 
 MyBMP::BMP::BMP() {
 
@@ -10,13 +11,13 @@ MyBMP::BMP::BMP() {
 void MyBMP::BMP::decode(const char *filename, int &width, int &height, byte *&bgrdata) {
     std::ifstream infile;
     infile.open(filename, std::ios::in|std::ios::binary);
-
     infile.seekg(0, infile.end);
     int bmpdatalength = infile.tellg();
     infile.seekg(0, infile.beg);
     std::cout << "bmp data length is " << bmpdatalength<<"\n";
+    //all data
     byte *bmpdata = new byte[bmpdatalength];
-    byte *copyptr = bmpdata;
+    byte *copyptr = bmpdata;  //保存首地址，便于以后释放
     infile.read((char*)bmpdata, bmpdatalength);  //读取编码的jpeg文件数据到内存中
     infile.close();
 
@@ -31,7 +32,6 @@ void MyBMP::BMP::decode(const char *filename, int &width, int &height, byte *&bg
     bmpdata = bmpdata + sizeof(fileHeader.bfReserved2);
     memcpy(&fileHeader.bfOffBits, bmpdata, sizeof(fileHeader.bfOffBits));
     bmpdata = bmpdata + sizeof(fileHeader.bfOffBits);
-
     showBmpHead(fileHeader);
 
     //read info header
@@ -41,22 +41,33 @@ void MyBMP::BMP::decode(const char *filename, int &width, int &height, byte *&bg
 
     height = infoHeader.biHeight;
     width = infoHeader.biWidth;
-
+   
+    int bytes_per_row = 0;  
+    int tmp = floor((24*width + 31)*1.0/32);
+    bytes_per_row = tmp*4;    
+    int datasize = bytes_per_row*height;
     if((bmpdatalength - fileHeader.bfOffBits) != (infoHeader.biSizeImage)) {
-        std::cout<<"bmp data is wrong\n";
+        if((bmpdatalength - fileHeader.bfOffBits) != datasize) {
+            std::cout<<"******BMP DATA is WRONG******\n";
+        }
     }
-    bgrdata = new byte[bmpdatalength - fileHeader.bfOffBits];
+    //给外部使用的，不能删除
+    bgrdata = new byte[height*width*3];
 
     //bmp的数据存储顺序是从左下到右上，而一般的习惯是从左上到右下，因此做一个转置
     for(int h=0;h<height;h++) {
         for(int w=0;w<width;w++) {
             int offset = h*width + w;
-            int inflect = (height - 1 -h)*width + w;
-            bgrdata[offset*3] = bmpdata[inflect*3];
-            bgrdata[offset*3+1] = bmpdata[inflect*3+1];
-            bgrdata[offset*3+2] = bmpdata[inflect*3+2];
+            int inflect = (height - 1 -h)*bytes_per_row + w*3;
+            bgrdata[offset*3] = bmpdata[inflect];
+            bgrdata[offset*3+1] = bmpdata[inflect+1];
+            bgrdata[offset*3+2] = bmpdata[inflect+2];
 
         }
+    }
+    
+    if(copyptr != nullptr) {
+        delete[] copyptr;
     }
 
 }
@@ -69,26 +80,30 @@ void MyBMP::BMP::showBmpHead(BITMAPFILEHEADER pBmpHead) {
 }
 
 void MyBMP::BMP::showBmpInfoHead(BITMAPINFOHEADER pBmpinfoHead)
-{//定义显示信息的函数，传入的是信息头结构体
-   printf("位图信息头:\n" );
-   printf("信息头的大小:%d\n" ,pBmpinfoHead.biSize);
-   printf("位图宽度:%d\n" ,pBmpinfoHead.biWidth);
-   printf("位图高度:%d\n" ,pBmpinfoHead.biHeight);
-   printf("图像的位面数(位面数是调色板的数量,默认为1个调色板):%d\n" ,pBmpinfoHead.biPlanes);
-   printf("每个像素的位数:%d\n" ,pBmpinfoHead.biBitCount);
-   printf("压缩方式:%d\n" ,pBmpinfoHead.biCompression);
-   printf("图像的大小:%d\n" ,pBmpinfoHead.biSizeImage);
-   printf("水平方向分辨率:%d\n" ,pBmpinfoHead.biXPelsPerMeter);
-   printf("垂直方向分辨率:%d\n" ,pBmpinfoHead.biYPelsPerMeter);
-   printf("使用的颜色数:%d\n" ,pBmpinfoHead.biClrUsed);
-   printf("重要颜色数:%d\n" ,pBmpinfoHead.biClrImportant);
+{
+    //定义显示信息的函数，传入的是信息头结构体
+    printf("位图信息头:\n" );
+    printf("信息头的大小:%d\n" ,pBmpinfoHead.biSize);
+    printf("位图宽度:%d\n" ,pBmpinfoHead.biWidth);
+    printf("位图高度:%d\n" ,pBmpinfoHead.biHeight);
+    printf("图像的位面数(位面数是调色板的数量,默认为1个调色板):%d\n" ,pBmpinfoHead.biPlanes);
+    printf("每个像素的位数:%d\n" ,pBmpinfoHead.biBitCount);
+    printf("压缩方式:%d\n" ,pBmpinfoHead.biCompression);
+    printf("图像的大小:%d\n" ,pBmpinfoHead.biSizeImage);
+    printf("水平方向分辨率:%d\n" ,pBmpinfoHead.biXPelsPerMeter);
+    printf("垂直方向分辨率:%d\n" ,pBmpinfoHead.biYPelsPerMeter);
+    printf("使用的颜色数:%d\n" ,pBmpinfoHead.biClrUsed);
+    printf("重要颜色数:%d\n" ,pBmpinfoHead.biClrImportant);
 }
 
+//外部传入bgr数据，保存为bmp文件，文件名为filename
 void MyBMP::BMP::encode(const char *filename, int width, int height, byte *&bgrdata) {
     BITMAPFILEHEADER header;
     BITMAPINFOHEADER info;
-
-    int datasize = width*height*3;
+    int bytes_per_row = 0;  
+    int tmp = floor((24*width + 31)*1.0/32);
+    bytes_per_row = tmp*4;    
+    int datasize = bytes_per_row*height;
     header.bfType = 0x4d42;
     header.bfSize = datasize + 54;
     header.bfReserved1 = 0;
@@ -101,25 +116,25 @@ void MyBMP::BMP::encode(const char *filename, int width, int height, byte *&bgrd
     info.biPlanes = 1;
     info.biBitCount = 24;
     info.biCompression = 0;
-    info.biSizeImage = datasize;
+    info.biSizeImage = 0;
     info.biXPelsPerMeter = 0;
     info.biYPelsPerMeter = 0;
     info.biClrUsed = 0;
     info.biClrImportant = 0;
 
-    byte *bmpdata = new byte[datasize];
+    byte *bmpdata = new byte[width*height*3];
+    byte *copyptr = bmpdata;
    // bmp的数据存储顺序是从左下到右上，而一般的习惯是从左上到右下，因此做一个转置
     for(int h=0;h<height;h++) {
-        for(int w=0;w<width;w++) {
+        for(int w=0;w<width;w++) {           
             int offset = h*width + w;
             int inflect = (height - 1 -h)*width + w;
             bmpdata[offset*3] = bgrdata[inflect*3];
             bmpdata[offset*3+1] = bgrdata[inflect*3+1];
             bmpdata[offset*3+2] = bgrdata[inflect*3+2];
-
         }
     }
-
+    int zeros = bytes_per_row-width*3;
     //保存到文件
     std::ofstream outfile;
     outfile.open(filename, std::ios::out|std::ios::binary);
@@ -130,8 +145,19 @@ void MyBMP::BMP::encode(const char *filename, int width, int height, byte *&bgrd
     outfile.write((char*)&header.bfOffBits, sizeof(header.bfOffBits));
 
     outfile.write((char*)&info, sizeof(info));
-    outfile.write((char*)bmpdata, datasize);
+    byte zero = 0;
+    for(int h=0;h<height;h++) { 
+        outfile.write((char*)bmpdata, width*3);
+        bmpdata = bmpdata + width*3;
+        for(int i=0;i<zeros; i++) {
+            outfile.write((char*)&zero, 1);
+        }
+    }
+
     outfile.close();
+    if(copyptr != nullptr) {
+        delete[] copyptr;
+    }
 }
 
 

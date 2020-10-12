@@ -1,6 +1,6 @@
 # MyJPEG_Decoder
 
-C++实现的jpeg,bmp解码器，并且实现了resize操作（双线性插值的方法），功能虽然实现了，但是并不高效，暂时只是为了了解一下jpeg,bmp文件的格式的解码方式和一些图像处理的基本操作的实现方法，其中bmp的解码比较简单，重点是jpeg的解码比较复杂。
+C++实现的jpeg,bmp解码器，并且实现了图片放缩的resize操作（双线性插值的方法），功能虽然实现了，但是并不高效，暂时只是为了了解一下jpeg,bmp文件的格式的解码方式，其中bmp的解码比较简单，重点是jpeg的解码流程比较复杂。
 
 ## jpeg解码过程
 
@@ -9,20 +9,22 @@ C++实现的jpeg,bmp解码器，并且实现了resize操作（双线性插值的
 * 读取图片信息，采样率，每个颜色分量使用的量化表ID
 * 读取哈夫曼表，建立哈夫曼树
 * 读取MCU数据，对MCU直流数据进行差分解码
-* 对MUC的每个颜色分量的8*8的单元，进行反量化，进行反zagzig,反向离散余弦变换
-* 将YCrb数据转换为RGB数据
+* 对MCU的每个颜色分量的8*8的单元，进行反量化，进行反zagzig,反向离散余弦变换
+* 将YCrCb数据转换为RGB数据
 * 将每个MCU解码后的RGB数据拼接为整幅图像
+* 将RGB数据加上BMP的文件头，保存为BMP图像，以验证解码的正确性
 
 
 ## 测试
-执行make命令，就会有可执行文件生成，./pic_decode.bin test.jpeg test.bmp,会把jpeg和bmp的信息打印出来，并将jpeg文件转存为bmp文件，并resize原图像 
+执行make命令，就会有可执行文件生成，./pic_decode.bin test.jpeg test.bmp,会把jpeg和bmp的格式信息打印出来，并将jpeg文件转存为bmp文件，并resize原图像1.5倍，保存为新的图片，当然也可以在程序中更改缩放大小，执行的命令输出如下所示：
+
 ```
 encoded jpeg data length is 25352
 This is a jpeg file and open success!
 
 ************APP0 INFO*******************
 本数据段的长度为：16
-标识符： JFIF;	版本号：1.1
+标识符： JFIF;  版本号：1.1
 X和Y的密度单位: 1; ---注释：0：无单位；1：点数/英寸；2：点数/厘米
 X方向像素密度:72;  Y方向像素密度:72
 缩略图水平像素数目:0; 缩略图垂直像素数目:0
@@ -108,19 +110,19 @@ AC哈夫曼表; Table ID:1
 
 *****jpeg图像解码结束，已将bgr数据存储为二进制数据：jpeg_decoded_bgr.bin******
 
-bmp data length is 1478454
-BMP文件大小：1443kb
+bmp data length is 1423594
+BMP文件大小：1390kb
 保留字必须为0：0
 保留字必须为0：0
 实际位图数据的偏移字节数: 54
 位图信息头:
 信息头的大小:40
-位图宽度:880
-位图高度:560
+位图宽度:870
+位图高度:545
 图像的位面数(位面数是调色板的数量,默认为1个调色板):1
 每个像素的位数:24
 压缩方式:0
-图像的大小:1478400
+图像的大小:0
 水平方向分辨率:0
 垂直方向分辨率:0
 使用的颜色数:0
@@ -132,7 +134,7 @@ BMP文件大小：1443kb
 *****测试：将jpeg解码的数据存储位bmp图像，验证正确性，存储文件为：jpeg_to_bmp_test.bmp******
 
 resize use scale and scale is 1.5
-resized width is 1032 height is 696
-图像resize测试（双线型插值法）,图像原尺寸（688,464),resize 后的尺寸为（1032,696),resize后的图像为：jpeg_resized.bmp
+resized width is 1020 height is 679
+图像resize测试（双线型插值法）,图像原尺寸（680,453),resize 后的尺寸为（1020,679),resize后的图像为：jpeg_resized.bmp
 
 ```
