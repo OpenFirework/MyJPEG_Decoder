@@ -134,7 +134,8 @@ public:
                 for (int w = 0; w < subVector[id].width; w++) {
                     //逆离散余弦变换的结果暂存到out数组
                     double out[8][8] = {0};
-					//逆离散余弦变换计算过程
+		    //逆离散余弦变换计算过程
+		   /*
                     for(int i=0; i<8; i++) {
                         for(int j=0; j<8; j++) {
                             float temp = 0.0;
@@ -145,7 +146,23 @@ public:
                             }       
                             out[i][j] = temp;
                         }
-                    }
+                    }*/
+	           //优化
+		    double s[8][8] = {};
+		    for (int j = 0; j < 8; j++) {
+			for (int x = 0; x < 8; x++) {
+			    for (int y = 0; y < 8; y++) {
+				s[j][x] += cu[y] * mcu[id][h][w][x][y] * cos_cache[(j + j + 1) * y];
+			    }
+			}
+		    }                    
+		    for (int i = 0; i < 8; i++) {
+			for (int j = 0; j < 8; j++) {
+			    for (int x = 0; x < 8; x++) {
+				out[i][j] += cu[x] * s[j][x] * cos_cache[(i + i + 1) * x];
+			    }
+			}
+		    }
                     //存回mcu中
                     for (int i = 0; i < 8; i++) {
                         for (int j = 0; j < 8; j++) {
